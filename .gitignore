@@ -1,0 +1,29 @@
+# 仮想環境・キャッシュ
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# 接続先などの手元設定（.env.example だけを公開する）
+.env
+
+# モデルの重み（torchvision が初回に取得する。10MB 超なので commit しない）
+.models/
+*.pth
+*.pt
+*.onnx
+
+# 実行結果（実機で撮った写真には家の中が写るので公開しない）
+runs/
+recordings/
+.mihari/
+
+# OS・エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 提出用の PDF（scripts/build_report_pdf.py の出力）
+dist/

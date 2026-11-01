@@ -1,0 +1,11 @@
+# 動作を確かめた版（2026-10-28・Windows 11・Python 3.11・RTX 3070 Laptop）。
+# torch と torchvision は GPU 版を PyTorch の配布元から入れる:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.10.0+cu128
+torchvision==0.25.0+cu128
+numpy==2.4.6
+pillow==13.0.0
+opencv-python==5.0.0.93
+websockets==17.3
+python-dotenv==1.2.4
+pytest==9.2.0
