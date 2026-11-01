@@ -49,3 +49,20 @@ def test_md_to_html_renders_blocks_and_escapes() -> None:
     assert "<code>--enable-ir</code>" in html
     assert "<th>試したこと</th>" in html and "<td>ずれ −0.3 度</td>" in html
     assert "---" not in html                                        # 表の区切り行は出さない
+
+
+def test_md_to_html_embeds_images_from_base_dir(tmp_path: Path) -> None:
+    from PIL import Image
+
+    Image.new("RGB", (4, 3), (10, 200, 140)).save(tmp_path / "shot.jpg")
+    html = brp.md_to_html("![見回しの結果](shot.jpg)\n\n本文", base=tmp_path)
+    assert '<figure><img src="data:image/jpeg;base64,' in html          # 外のファイルに頼らず埋め込む
+    assert "<figcaption>見回しの結果</figcaption></figure>" in html
+    assert "<p>本文</p>" in html
+
+
+def test_md_to_html_stops_on_missing_image(tmp_path: Path) -> None:
+    import pytest
+
+    with pytest.raises(SystemExit):
+        brp.md_to_html("![無い絵](nothing.png)", base=tmp_path)

@@ -1,7 +1,7 @@
 """提出用のレポート PDF を docs/report-draft.md から作る（画面に何も出さない）。
 
 - Markdown は外の部品を使わず、レポートで使う書き方（見出し・段落・箇条書き・番号つき・表・
-  インラインのコード・太字・引用）だけをこの中で HTML に直す
+  インラインのコード・太字・引用・1 行だけの絵）だけをこの中で HTML に直す。絵は HTML に埋め込む
 - 「下書きの扱い」の引用は提出物から外し、``<ACCOUNT>`` を ``--account`` の値に置き換える
 - PDF は Chrome の headless で印刷する。使い捨てのプロフィールを使うので、普段の Chrome には触れない
 
@@ -11,7 +11,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import html
+import mimetypes
 import re
 import shutil
 import subprocess
@@ -39,6 +41,9 @@ th, td { border: 1px solid #999; padding: 3px 6px; vertical-align: top; }
 th { background: #eee; }
 code { font-family: Consolas, "MS Gothic", monospace; background: #f2f2f2; padding: 0 3px; }
 blockquote { margin: 6px 0; padding: 4px 10px; border-left: 3px solid #aaa; color: #444; }
+figure { margin: 8px 0 12px; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; max-height: 90mm; border: 1px solid #ccc; }
+figcaption { font-size: 9pt; color: #444; margin-top: 3px; }
 """
 
 
@@ -55,8 +60,20 @@ def inline(text: str) -> str:
     return "".join(out)
 
 
-def md_to_html(md: str) -> str:
-    """レポートで使う範囲の Markdown を HTML の本文に直す。"""
+def figure(alt: str, src: str, base: Path) -> str:
+    """1 行だけの絵（``![説明](パス)``）を、画像を埋め込んだ figure にする。絵が無ければ止まる。"""
+    path = base / src
+    if not path.is_file():
+        raise SystemExit(f"レポートの絵が見つかりません: {path}")
+    mime = mimetypes.guess_type(path.name)[0] or "image/png"
+    data = base64.b64encode(path.read_bytes()).decode("ascii")
+    return (f'<figure><img src="data:{mime};base64,{data}" alt="{html.escape(alt)}">'
+            f"<figcaption>{inline(alt)}</figcaption></figure>")
+
+
+def md_to_html(md: str, base: Path | None = None) -> str:
+    """レポートで使う範囲の Markdown を HTML の本文に直す。絵のパスは ``base``（既定は docs/）から見る。"""
+    base = base if base is not None else ROOT / "docs"
     lines = md.splitlines()
     out: list[str] = []
     i = 0
@@ -64,6 +81,11 @@ def md_to_html(md: str) -> str:
         line = lines[i]
         s = line.strip()
         if not s:
+            i += 1
+            continue
+        m = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)$", s)
+        if m:
+            out.append(figure(m.group(1), m.group(2), base))
             i += 1
             continue
         m = re.match(r"^(#{1,3})\s+(.*)$", s)
@@ -102,7 +124,7 @@ def md_to_html(md: str) -> str:
             out.append(f"<{tag}>" + "".join(f"<li>{inline(t)}</li>" for t in items) + f"</{tag}>")
             continue
         para = []
-        while i < len(lines) and lines[i].strip() and not re.match(r"^(#{1,3}\s|\||>|[-*]\s|\d+\.\s)", lines[i].strip()):
+        while i < len(lines) and lines[i].strip() and not re.match(r"^(#{1,3}\s|\||>|[-*]\s|\d+\.\s|!\[)", lines[i].strip()):
             para.append(lines[i].strip())
             i += 1
         out.append("<p>" + inline("".join(para)) + "</p>")
@@ -116,9 +138,9 @@ def prepare(md: str, account: str) -> str:
     return re.sub(r"^(# .*?)（下書き）", r"\1", text, count=1, flags=re.M)
 
 
-def build_html(md: str, account: str) -> str:
+def build_html(md: str, account: str, base: Path | None = None) -> str:
     """PDF にする HTML 全体を作る。"""
-    body = md_to_html(prepare(md, account))
+    body = md_to_html(prepare(md, account), base)
     return f"<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><style>{CSS}</style></head><body>{body}</body></html>"
 
 
@@ -143,7 +165,7 @@ def main() -> int:
     name = args.account if args.account != PLACEHOLDER else "ACCOUNT"
     html_path = out_dir / "report.html"
     pdf_path = out_dir / f"説明資料_PAI最終課題_{name}.pdf"
-    html_path.write_text(build_html(md, args.account), encoding="utf-8")
+    html_path.write_text(build_html(md, args.account, Path(args.src).parent), encoding="utf-8")
 
     profile = tempfile.mkdtemp(prefix="mihari-pdf-")
     try:
