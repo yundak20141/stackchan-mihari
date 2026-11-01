@@ -286,7 +286,10 @@ class Sentry:
         decision = decide_ac(person_present=present, env=env, now=now, state=self.state,
                              policy=s.ac, thresholds=s.thresholds)
         outcome = await self.gate.handle(decision, self.robot)
-        self.state = next_state(self.state, decision=decision, person_present=present, now=now)
+        # 送れなかった操作（本体が断った・返事が無い）は覚えない。覚えると「送り直さない」に当たり、
+        # 切る指令の失敗のあとエアコンが入ったままになる。人を見た時刻だけは覚える。
+        remembered = decision if outcome.status != "failed" else AcDecision("none", decision.reason)
+        self.state = next_state(self.state, decision=remembered, person_present=present, now=now)
 
         infer = [v.infer_ms for v in views] + ([after.infer_ms] if after else [])
         report = PatrolReport(

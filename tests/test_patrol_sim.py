@@ -224,3 +224,23 @@ def test_capture_timeout_twice_stops_the_patrol() -> None:
     robot = FlakyRobot(make_room(), env=HOT, pan_right_sign=1, fail_times=2)
     with pytest.raises(TimeoutError):
         patrol(robot)
+
+
+class FailingGate:
+    """本体が赤外線を断った時と同じ結果を返す関所（テスト用）。"""
+
+    async def handle(self, decision, robot):
+        from mihari.ir import IrOutcome
+
+        return IrOutcome("failed", note="本体が断った: test")
+
+
+def test_failed_send_is_not_remembered_and_is_retried() -> None:
+    robot = PanoramaRobot(add_person(make_room(), 760), env=HOT, pan_right_sign=1)
+    sentry = Sentry(robot, MarkerDetector(), Settings(), sleep=no_sleep)
+    sentry.gate = FailingGate()
+    first = asyncio.run(sentry.patrol_once())
+    second = asyncio.run(sentry.patrol_once())
+    assert first.ac_decision.action == "cool" and first.ir_outcome.status == "failed"
+    assert second.ac_decision.action == "cool"          # 送れなかった操作は覚えず、次の周で送り直す
+    assert sentry.state.person_last_seen_at is not None  # 人を見た時刻は覚える
